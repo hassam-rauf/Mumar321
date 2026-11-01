@@ -1,0 +1,37 @@
+{
+  "products": [
+    {"sku": "MUG-CLASSIC",   "name": "Classic Coffee Mug",       "price": "14.99", "stock": 42},
+    {"sku": "TEE-LOGO",      "name": "Logo T-Shirt",             "price": "24.00", "stock": 18},
+    {"sku": "CAP-TRUCKER",   "name": "Trucker Cap",              "price": "19.50", "stock": 0},
+    {"sku": "BOTTLE-STEEL",  "name": "Steel Water Bottle",       "price": "29.00", "stock": 7},
+    {"sku": "TOTE-CANVAS",   "name": "Canvas Tote Bag",          "price": "16.00", "stock": 0},
+    {"sku": "NOTE-A5",       "name": "A5 Dotted Notebook",       "price": "11.25", "stock": 120},
+    {"sku": "STICKER-PACK",  "name": "Sticker Pack",             "price": "6.00",  "stock": 3},
+    {"sku": "PHONE-CASE",    "name": "Phone Case",               "price": "21.00", "stock": 0},
+    {"sku": "SOCKS-CREW",    "name": "Crew Socks",               "price": "9.99",  "stock": 55},
+    {
+      "sku": "HOODIE", "name": "Zip Hoodie", "price": "49.00", "type": "variable",
+      "attribute": "Size",
+      "variations": [
+        {"option": "S",  "stock": 4},
+        {"option": "M",  "stock": 0},
+        {"option": "L",  "stock": 2},
+        {"option": "XL", "stock": 0}
+      ]
+    }
+  ],
+  "orders": [
+    {"status": "processing", "email": "john.doe@example.com",  "first_name": "John",  "last_name": "Doe",
+     "phone": "+1 555 0101", "items": [["MUG-CLASSIC", 2], ["NOTE-A5", 1]]},
+    {"status": "completed",  "email": "sara.lee@example.com",  "first_name": "Sara",  "last_name": "Lee",
+     "phone": "+1 555 0102", "items": [["TEE-LOGO", 1]],
+     "tracking": {"carrier": "UPS", "number": "1Z999AA10123456784"}},
+    {"status": "on-hold",    "email": "mike.ross@example.com", "first_name": "Mike",  "last_name": "Ross",
+     "phone": "+1 555 0103", "items": [["BOTTLE-STEEL", 1], ["STICKER-PACK", 3]]},
+    {"status": "pending",    "email": "anna.k@example.com",    "first_name": "Anna",  "last_name": "Kim",
+     "phone": "+1 555 0104", "items": [["SOCKS-CREW", 4]]},
+    {"status": "completed",  "email": "leo.m@example.com",     "first_name": "Leo",   "last_name": "Martin",
+     "phone": "+1 555 0105", "items": [["HOODIE-L", 1]],
+     "tracking": {"carrier": "USPS", "number": "9400111899223856928499"}}
+  ]
+}

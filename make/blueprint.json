@@ -1,0 +1,1058 @@
+{
+  "name": "Woo AI Support Agent (NEEDS MANUAL REVIEW)",
+  "flow": [
+    {
+      "id": 1,
+      "module": "gateway:CustomWebHook",
+      "version": 1,
+      "parameters": {
+        "hook": null,
+        "maxResults": 1
+      },
+      "mapper": {},
+      "metadata": {
+        "designer": {
+          "x": 8400,
+          "y": 0,
+          "name": "woo-support webhook"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "module": "util:SetVariables",
+      "version": 1,
+      "parameters": {},
+      "mapper": {
+        "variables": [
+          {
+            "name": "woo_url",
+            "value": "https://YOUR-STORE-OR-TUNNEL"
+          },
+          {
+            "name": "tz",
+            "value": "America/New_York"
+          },
+          {
+            "name": "open_days",
+            "value": "1,2,3,4,5"
+          },
+          {
+            "name": "open_hhmm",
+            "value": "900"
+          },
+          {
+            "name": "close_hhmm",
+            "value": "1700"
+          },
+          {
+            "name": "force_route",
+            "value": ""
+          }
+        ],
+        "scope": "roundtrip"
+      },
+      "metadata": {
+        "designer": {
+          "x": 8700,
+          "y": 0,
+          "name": "Config"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "module": "builtin:BasicRouter",
+      "version": 1,
+      "parameters": {},
+      "mapper": {},
+      "metadata": {
+        "designer": {
+          "x": 9000,
+          "y": 0
+        }
+      },
+      "routes": [
+        {
+          "flow": [
+            {
+              "id": 10,
+              "module": "http:ActionSendDataBasicAuth",
+              "version": 3,
+              "parameters": {
+                "key": null,
+                "handleErrors": false
+              },
+              "mapper": {
+                "url": "{{2.woo_url}}/wp-json/wc/v3/orders/{{replace(1.payload.order_number; /\\D/g; emptystring)}}",
+                "method": "get",
+                "headers": [],
+                "qs": [],
+                "parseResponse": true,
+                "bodyType": "",
+                "contentType": "",
+                "timeout": "20",
+                "followRedirect": true
+              },
+              "metadata": {
+                "designer": {
+                  "x": 0,
+                  "y": 0,
+                  "name": "Get order"
+                }
+              },
+              "filter": {
+                "name": "track_order",
+                "conditions": [
+                  [
+                    {
+                      "a": "{{1.action}}",
+                      "o": "text:equal",
+                      "b": "track_order"
+                    }
+                  ]
+                ]
+              }
+            },
+            {
+              "id": 11,
+              "module": "builtin:BasicRouter",
+              "version": 1,
+              "parameters": {},
+              "mapper": {},
+              "metadata": {
+                "designer": {
+                  "x": 1200,
+                  "y": 0
+                }
+              },
+              "routes": [
+                {
+                  "flow": [
+                    {
+                      "id": 12,
+                      "module": "http:ActionSendDataBasicAuth",
+                      "version": 3,
+                      "parameters": {
+                        "key": null,
+                        "handleErrors": false
+                      },
+                      "mapper": {
+                        "url": "{{2.woo_url}}/wp-json/wc/v3/orders/{{10.data.id}}/notes",
+                        "method": "get",
+                        "headers": [],
+                        "qs": [
+                          {
+                            "name": "type",
+                            "value": "customer"
+                          }
+                        ],
+                        "parseResponse": true,
+                        "bodyType": "",
+                        "contentType": "",
+                        "timeout": "20",
+                        "followRedirect": true
+                      },
+                      "metadata": {
+                        "designer": {
+                          "x": 300,
+                          "y": 0,
+                          "name": "Get customer notes"
+                        }
+                      },
+                      "filter": {
+                        "name": "Found + email matches",
+                        "conditions": [
+                          [
+                            {
+                              "a": "{{10.statusCode}}",
+                              "o": "number:equal",
+                              "b": "200"
+                            },
+                            {
+                              "a": "{{lower(trim(10.data.billing.email))}}",
+                              "o": "text:equal",
+                              "b": "{{lower(trim(1.payload.email))}}"
+                            }
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": 13,
+                      "module": "gateway:WebhookRespond",
+                      "version": 1,
+                      "parameters": {},
+                      "mapper": {
+                        "status": "200",
+                        "body": "{\n \"ok\": true,\n \"message\": \"Order #{{10.data.number}} is {{switch(10.data.status; pending; pending payment; processing; being processed; on-hold; on hold; completed; completed and shipped; 10.data.status)}}. It was placed on {{formatDate(10.data.date_created; MMM D, YYYY)}} and includes {{join(map(10.data.line_items; name); , )}}. Tracking: {{ifempty(first(map(10.data.meta_data; value; key; _tracking_number)); ifempty(first(map(12.data; note)); not available yet))}}.\",\n \"data\": {\n  \"order_id\": \"{{10.data.id}}\",\n  \"status\": \"{{10.data.status}}\"\n },\n \"route\": null\n}",
+                        "headers": [
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json"
+                          }
+                        ]
+                      },
+                      "metadata": {
+                        "designer": {
+                          "x": 600,
+                          "y": 0
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "flow": [
+                    {
+                      "id": 15,
+                      "module": "gateway:WebhookRespond",
+                      "version": 1,
+                      "parameters": {},
+                      "mapper": {
+                        "status": "200",
+                        "body": "{\"ok\": false, \"message\": \"I couldn't find an order with that number and email. Please double-check both.\", \"data\": {}, \"route\": null}",
+                        "headers": [
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json"
+                          }
+                        ]
+                      },
+                      "metadata": {
+                        "designer": {
+                          "x": 900,
+                          "y": 0
+                        }
+                      },
+                      "filter": {
+                        "name": "Not found / wrong email (MARK AS FALLBACK ROUTE)",
+                        "conditions": []
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "flow": [
+            {
+              "id": 20,
+              "module": "http:ActionSendDataBasicAuth",
+              "version": 3,
+              "parameters": {
+                "key": null,
+                "handleErrors": false
+              },
+              "mapper": {
+                "url": "{{2.woo_url}}/wp-json/wc/v3/products",
+                "method": "get",
+                "headers": [],
+                "qs": [
+                  {
+                    "name": "search",
+                    "value": "{{1.payload.product_name}}"
+                  },
+                  {
+                    "name": "per_page",
+                    "value": "5"
+                  },
+                  {
+                    "name": "status",
+                    "value": "publish"
+                  }
+                ],
+                "parseResponse": true,
+                "bodyType": "",
+                "contentType": "",
+                "timeout": "20",
+                "followRedirect": true
+              },
+              "metadata": {
+                "designer": {
+                  "x": 1500,
+                  "y": 0,
+                  "name": "Search product"
+                }
+              },
+              "filter": {
+                "name": "check_stock",
+                "conditions": [
+                  [
+                    {
+                      "a": "{{1.action}}",
+                      "o": "text:equal",
+                      "b": "check_stock"
+                    }
+                  ]
+                ]
+              }
+            },
+            {
+              "id": 21,
+              "module": "builtin:BasicRouter",
+              "version": 1,
+              "parameters": {},
+              "mapper": {},
+              "metadata": {
+                "designer": {
+                  "x": 3600,
+                  "y": 0
+                }
+              },
+              "routes": [
+                {
+                  "flow": [
+                    {
+                      "id": 22,
+                      "module": "gateway:WebhookRespond",
+                      "version": 1,
+                      "parameters": {},
+                      "mapper": {
+                        "status": "200",
+                        "body": "{\"ok\": false, \"message\": \"I couldn't find a product called {{1.payload.product_name}}. Could you try another name?\", \"data\": {}, \"route\": null}",
+                        "headers": [
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json"
+                          }
+                        ]
+                      },
+                      "metadata": {
+                        "designer": {
+                          "x": 1800,
+                          "y": 0
+                        }
+                      },
+                      "filter": {
+                        "name": "Not found",
+                        "conditions": [
+                          [
+                            {
+                              "a": "{{length(20.data)}}",
+                              "o": "number:equal",
+                              "b": "0"
+                            }
+                          ]
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "flow": [
+                    {
+                      "id": 23,
+                      "module": "http:ActionSendDataBasicAuth",
+                      "version": 3,
+                      "parameters": {
+                        "key": null,
+                        "handleErrors": false
+                      },
+                      "mapper": {
+                        "url": "{{2.woo_url}}/wp-json/wc/v3/products/{{20.data[1].id}}/variations",
+                        "method": "get",
+                        "headers": [],
+                        "qs": [
+                          {
+                            "name": "per_page",
+                            "value": "50"
+                          }
+                        ],
+                        "parseResponse": true,
+                        "bodyType": "",
+                        "contentType": "",
+                        "timeout": "20",
+                        "followRedirect": true
+                      },
+                      "metadata": {
+                        "designer": {
+                          "x": 2100,
+                          "y": 0,
+                          "name": "Get variations"
+                        }
+                      },
+                      "filter": {
+                        "name": "Found (MARK AS FALLBACK ROUTE)",
+                        "conditions": []
+                      }
+                    },
+                    {
+                      "id": 24,
+                      "module": "util:SetVariables",
+                      "version": 1,
+                      "parameters": {},
+                      "mapper": {
+                        "variables": [
+                          {
+                            "name": "is_var",
+                            "value": "{{if(20.data[1].type = variable; true; false)}}"
+                          },
+                          {
+                            "name": "status",
+                            "value": "{{if(20.data[1].type = variable; first(map(23.data; stock_status; sku; {{upper(20.data[1].sku)}}-{{upper(1.payload.option)}})); 20.data[1].stock_status)}}"
+                          },
+                          {
+                            "name": "qty",
+                            "value": "{{if(20.data[1].type = variable; first(map(23.data; stock_quantity; sku; {{upper(20.data[1].sku)}}-{{upper(1.payload.option)}})); 20.data[1].stock_quantity)}}"
+                          },
+                          {
+                            "name": "label",
+                            "value": "{{20.data[1].name}}{{if(1.payload.option; ({{upper(1.payload.option)}}); emptystring)}}"
+                          },
+                          {
+                            "name": "in_stock_options",
+                            "value": "{{replace(join(map(23.data; sku; stock_status; instock); , ); {{upper(20.data[1].sku)}}-; emptystring)}}"
+                          }
+                        ],
+                        "scope": "roundtrip"
+                      },
+                      "metadata": {
+                        "designer": {
+                          "x": 2400,
+                          "y": 0
+                        }
+                      }
+                    },
+                    {
+                      "id": 25,
+                      "module": "builtin:BasicRouter",
+                      "version": 1,
+                      "parameters": {},
+                      "mapper": {},
+                      "metadata": {
+                        "designer": {
+                          "x": 3300,
+                          "y": 0
+                        }
+                      },
+                      "routes": [
+                        {
+                          "flow": [
+                            {
+                              "id": 26,
+                              "module": "gateway:WebhookRespond",
+                              "version": 1,
+                              "parameters": {},
+                              "mapper": {
+                                "status": "200",
+                                "body": "{\"ok\": true, \"message\": \"{{20.data[1].name}} is in stock in: {{ifempty(24.in_stock_options; none right now)}}. Which option do you want?\", \"data\": {\"product_id\": \"{{20.data[1].id}}\"}, \"route\": null}",
+                                "headers": [
+                                  {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                  }
+                                ]
+                              },
+                              "metadata": {
+                                "designer": {
+                                  "x": 2700,
+                                  "y": 0
+                                }
+                              },
+                              "filter": {
+                                "name": "Variable, no option",
+                                "conditions": [
+                                  [
+                                    {
+                                      "a": "{{24.is_var}}",
+                                      "o": "boolean:equal",
+                                      "b": "true"
+                                    },
+                                    {
+                                      "a": "{{1.payload.option}}",
+                                      "o": "notexist"
+                                    }
+                                  ]
+                                ]
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "flow": [
+                            {
+                              "id": 27,
+                              "module": "gateway:WebhookRespond",
+                              "version": 1,
+                              "parameters": {},
+                              "mapper": {
+                                "status": "200",
+                                "body": "{\"ok\": true, \"message\": \"{{24.label}} is {{if(24.status = instock; in stock ({{ifempty(24.qty; available)}} left); out of stock)}} at ${{20.data[1].price}}.\", \"data\": {\"product_id\": \"{{20.data[1].id}}\", \"stock_status\": \"{{24.status}}\", \"stock_quantity\": \"{{24.qty}}\"}, \"route\": null}",
+                                "headers": [
+                                  {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                  }
+                                ]
+                              },
+                              "metadata": {
+                                "designer": {
+                                  "x": 3000,
+                                  "y": 0
+                                }
+                              },
+                              "filter": {
+                                "name": "Answer (MARK AS FALLBACK ROUTE)",
+                                "conditions": []
+                              }
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "flow": [
+            {
+              "id": 30,
+              "module": "http:ActionSendDataBasicAuth",
+              "version": 3,
+              "parameters": {
+                "key": null,
+                "handleErrors": false
+              },
+              "mapper": {
+                "url": "{{2.woo_url}}/wp-json/wc/v3/products",
+                "method": "get",
+                "headers": [],
+                "qs": [
+                  {
+                    "name": "search",
+                    "value": "{{1.payload.product_name}}"
+                  },
+                  {
+                    "name": "per_page",
+                    "value": "5"
+                  },
+                  {
+                    "name": "status",
+                    "value": "publish"
+                  }
+                ],
+                "parseResponse": true,
+                "bodyType": "",
+                "contentType": "",
+                "timeout": "20",
+                "followRedirect": true
+              },
+              "metadata": {
+                "designer": {
+                  "x": 3900,
+                  "y": 0,
+                  "name": "Search product"
+                }
+              },
+              "filter": {
+                "name": "create_order",
+                "conditions": [
+                  [
+                    {
+                      "a": "{{1.action}}",
+                      "o": "text:equal",
+                      "b": "create_order"
+                    }
+                  ]
+                ]
+              }
+            },
+            {
+              "id": 31,
+              "module": "builtin:BasicRouter",
+              "version": 1,
+              "parameters": {},
+              "mapper": {},
+              "metadata": {
+                "designer": {
+                  "x": 6300,
+                  "y": 0
+                }
+              },
+              "routes": [
+                {
+                  "flow": [
+                    {
+                      "id": 32,
+                      "module": "gateway:WebhookRespond",
+                      "version": 1,
+                      "parameters": {},
+                      "mapper": {
+                        "status": "200",
+                        "body": "{\"ok\": false, \"message\": \"I couldn't find {{1.payload.product_name}} in our store.\", \"data\": {}, \"route\": null}",
+                        "headers": [
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json"
+                          }
+                        ]
+                      },
+                      "metadata": {
+                        "designer": {
+                          "x": 4200,
+                          "y": 0
+                        }
+                      },
+                      "filter": {
+                        "name": "Not found",
+                        "conditions": [
+                          [
+                            {
+                              "a": "{{length(30.data)}}",
+                              "o": "number:equal",
+                              "b": "0"
+                            }
+                          ]
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "flow": [
+                    {
+                      "id": 33,
+                      "module": "http:ActionSendDataBasicAuth",
+                      "version": 3,
+                      "parameters": {
+                        "key": null,
+                        "handleErrors": false
+                      },
+                      "mapper": {
+                        "url": "{{2.woo_url}}/wp-json/wc/v3/products/{{30.data[1].id}}/variations",
+                        "method": "get",
+                        "headers": [],
+                        "qs": [
+                          {
+                            "name": "per_page",
+                            "value": "50"
+                          }
+                        ],
+                        "parseResponse": true,
+                        "bodyType": "",
+                        "contentType": "",
+                        "timeout": "20",
+                        "followRedirect": true
+                      },
+                      "metadata": {
+                        "designer": {
+                          "x": 4500,
+                          "y": 0,
+                          "name": "Get variations"
+                        }
+                      },
+                      "filter": {
+                        "name": "Found (MARK AS FALLBACK ROUTE)",
+                        "conditions": []
+                      }
+                    },
+                    {
+                      "id": 34,
+                      "module": "util:SetVariables",
+                      "version": 1,
+                      "parameters": {},
+                      "mapper": {
+                        "variables": [
+                          {
+                            "name": "status",
+                            "value": "{{if(30.data[1].type = variable; first(map(33.data; stock_status; sku; {{upper(30.data[1].sku)}}-{{upper(1.payload.option)}})); 30.data[1].stock_status)}}"
+                          },
+                          {
+                            "name": "qty",
+                            "value": "{{if(30.data[1].type = variable; first(map(33.data; stock_quantity; sku; {{upper(30.data[1].sku)}}-{{upper(1.payload.option)}})); 30.data[1].stock_quantity)}}"
+                          },
+                          {
+                            "name": "label",
+                            "value": "{{30.data[1].name}}{{if(1.payload.option; ({{upper(1.payload.option)}}); emptystring)}}"
+                          },
+                          {
+                            "name": "var_id",
+                            "value": "{{if(30.data[1].type = variable; first(map(33.data; id; sku; {{upper(30.data[1].sku)}}-{{upper(1.payload.option)}})); 0)}}"
+                          },
+                          {
+                            "name": "want",
+                            "value": "{{ifempty(parseNumber(1.payload.quantity); 1)}}"
+                          },
+                          {
+                            "name": "first",
+                            "value": "{{first(split(trim(1.payload.name); space))}}"
+                          },
+                          {
+                            "name": "last",
+                            "value": "{{trim(replace(trim(1.payload.name); first(split(trim(1.payload.name); space)); emptystring))}}"
+                          }
+                        ],
+                        "scope": "roundtrip"
+                      },
+                      "metadata": {
+                        "designer": {
+                          "x": 4800,
+                          "y": 0
+                        }
+                      }
+                    },
+                    {
+                      "id": 35,
+                      "module": "builtin:BasicRouter",
+                      "version": 1,
+                      "parameters": {},
+                      "mapper": {},
+                      "metadata": {
+                        "designer": {
+                          "x": 6000,
+                          "y": 0
+                        }
+                      },
+                      "routes": [
+                        {
+                          "flow": [
+                            {
+                              "id": 36,
+                              "module": "http:ActionSendDataBasicAuth",
+                              "version": 3,
+                              "parameters": {
+                                "key": null,
+                                "handleErrors": false
+                              },
+                              "mapper": {
+                                "url": "{{2.woo_url}}/wp-json/wc/v3/orders",
+                                "method": "post",
+                                "headers": [],
+                                "qs": [],
+                                "parseResponse": true,
+                                "bodyType": "raw",
+                                "contentType": "application/json",
+                                "timeout": "20",
+                                "followRedirect": true,
+                                "data": "{\n \"status\": \"pending\",\n \"set_paid\": false,\n \"billing\": {\n  \"first_name\": \"{{34.first}}\",\n  \"last_name\": \"{{34.last}}\",\n  \"email\": \"{{trim(1.payload.email)}}\",\n  \"phone\": \"{{trim(1.payload.phone)}}\"\n },\n \"line_items\": [\n  {\n   \"product_id\": {{30.data[1].id}},\n   \"variation_id\": {{34.var_id}},\n   \"quantity\": {{34.want}}\n  }\n ],\n \"customer_note\": \"Created by the AI support agent.\"\n}"
+                              },
+                              "metadata": {
+                                "designer": {
+                                  "x": 5100,
+                                  "y": 0,
+                                  "name": "Create pending order"
+                                }
+                              },
+                              "filter": {
+                                "name": "Available",
+                                "conditions": [
+                                  [
+                                    {
+                                      "a": "{{34.status}}",
+                                      "o": "text:equal",
+                                      "b": "instock"
+                                    },
+                                    {
+                                      "a": "{{ifempty(34.qty; 99999)}}",
+                                      "o": "number:greaterorequal",
+                                      "b": "{{34.want}}"
+                                    }
+                                  ]
+                                ]
+                              }
+                            },
+                            {
+                              "id": 37,
+                              "module": "gateway:WebhookRespond",
+                              "version": 1,
+                              "parameters": {},
+                              "mapper": {
+                                "status": "200",
+                                "body": "{\"ok\": {{if(36.statusCode = 201; true; false)}}, \"message\": \"{{if(36.statusCode = 201; Done! Order #{{36.data.number}} for {{34.want}} x {{34.label}} (total ${{36.data.total}}) is created. We've saved it as pending and will email the payment link to {{1.payload.email}}.; Sorry, I couldn't create the order. A team member will follow up.)}}\", \"data\": {\"order_id\": \"{{36.data.id}}\", \"payment_url\": \"{{36.data.payment_url}}\"}, \"route\": null}",
+                                "headers": [
+                                  {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                  }
+                                ]
+                              },
+                              "metadata": {
+                                "designer": {
+                                  "x": 5400,
+                                  "y": 0
+                                }
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "flow": [
+                            {
+                              "id": 38,
+                              "module": "gateway:WebhookRespond",
+                              "version": 1,
+                              "parameters": {},
+                              "mapper": {
+                                "status": "200",
+                                "body": "{\"ok\": false, \"message\": \"Sorry, {{34.label}} {{if(34.status = instock; only has {{34.qty}} left. Want that many instead?; is not available right now.)}}\", \"data\": {}, \"route\": null}",
+                                "headers": [
+                                  {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                  }
+                                ]
+                              },
+                              "metadata": {
+                                "designer": {
+                                  "x": 5700,
+                                  "y": 0
+                                }
+                              },
+                              "filter": {
+                                "name": "Unavailable (MARK AS FALLBACK ROUTE)",
+                                "conditions": []
+                              }
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "flow": [
+            {
+              "id": 40,
+              "module": "util:SetVariables",
+              "version": 1,
+              "parameters": {},
+              "mapper": {
+                "variables": [
+                  {
+                    "name": "dow",
+                    "value": "{{formatDate(now; E; 2.tz)}}"
+                  },
+                  {
+                    "name": "hhmm",
+                    "value": "{{parseNumber(formatDate(now; HHmm; 2.tz))}}"
+                  }
+                ],
+                "scope": "roundtrip"
+              },
+              "metadata": {
+                "designer": {
+                  "x": 6600,
+                  "y": 0,
+                  "name": "Store-local time"
+                }
+              },
+              "filter": {
+                "name": "business_hours",
+                "conditions": [
+                  [
+                    {
+                      "a": "{{1.action}}",
+                      "o": "text:equal",
+                      "b": "business_hours"
+                    }
+                  ]
+                ]
+              }
+            },
+            {
+              "id": 41,
+              "module": "builtin:BasicRouter",
+              "version": 1,
+              "parameters": {},
+              "mapper": {},
+              "metadata": {
+                "designer": {
+                  "x": 7500,
+                  "y": 0
+                }
+              },
+              "routes": [
+                {
+                  "flow": [
+                    {
+                      "id": 42,
+                      "module": "gateway:WebhookRespond",
+                      "version": 1,
+                      "parameters": {},
+                      "mapper": {
+                        "status": "200",
+                        "body": "{\"ok\": true, \"message\": \"Our team is available now. Connecting you to a human agent.\", \"data\": {\"open\": true}, \"route\": \"transfer\"}",
+                        "headers": [
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json"
+                          }
+                        ]
+                      },
+                      "metadata": {
+                        "designer": {
+                          "x": 6900,
+                          "y": 0
+                        }
+                      },
+                      "filter": {
+                        "name": "Open now",
+                        "conditions": [
+                          [
+                            {
+                              "a": "{{2.force_route}}",
+                              "o": "text:equal",
+                              "b": "transfer"
+                            }
+                          ],
+                          [
+                            {
+                              "a": "{{2.force_route}}",
+                              "o": "notexist"
+                            },
+                            {
+                              "a": "{{2.open_days}}",
+                              "o": "text:contain",
+                              "b": "{{40.dow}}"
+                            },
+                            {
+                              "a": "{{40.hhmm}}",
+                              "o": "number:greaterorequal",
+                              "b": "{{2.open_hhmm}}"
+                            },
+                            {
+                              "a": "{{40.hhmm}}",
+                              "o": "number:less",
+                              "b": "{{2.close_hhmm}}"
+                            }
+                          ]
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "flow": [
+                    {
+                      "id": 43,
+                      "module": "gateway:WebhookRespond",
+                      "version": 1,
+                      "parameters": {},
+                      "mapper": {
+                        "status": "200",
+                        "body": "{\"ok\": true, \"message\": \"We're closed right now. Our hours are Mon-Fri 9:00-17:00 ({{2.tz}}). Leave your name, phone number and the reason for your call, and we'll call you back.\", \"data\": {\"open\": false}, \"route\": \"message\"}",
+                        "headers": [
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json"
+                          }
+                        ]
+                      },
+                      "metadata": {
+                        "designer": {
+                          "x": 7200,
+                          "y": 0
+                        }
+                      },
+                      "filter": {
+                        "name": "Closed (MARK AS FALLBACK ROUTE)",
+                        "conditions": []
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "flow": [
+            {
+              "id": 51,
+              "module": "gateway:WebhookRespond",
+              "version": 1,
+              "parameters": {},
+              "mapper": {
+                "status": "200",
+                "body": "{\"ok\": true, \"message\": \"Thanks {{first(split(1.payload.name; space))}}! We'll call you at {{1.payload.phone}} during business hours.\", \"data\": {}, \"route\": null}",
+                "headers": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ]
+              },
+              "metadata": {
+                "designer": {
+                  "x": 7800,
+                  "y": 0,
+                  "name": "Respond (add Google Sheets 'Add a row' before this)"
+                }
+              },
+              "filter": {
+                "name": "callback_request",
+                "conditions": [
+                  [
+                    {
+                      "a": "{{1.action}}",
+                      "o": "text:equal",
+                      "b": "callback_request"
+                    }
+                  ]
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "flow": [
+            {
+              "id": 60,
+              "module": "gateway:WebhookRespond",
+              "version": 1,
+              "parameters": {},
+              "mapper": {
+                "status": "200",
+                "body": "{\"ok\": false, \"message\": \"Sorry, I can't help with that yet.\", \"data\": {}, \"route\": null}",
+                "headers": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ]
+              },
+              "metadata": {
+                "designer": {
+                  "x": 8100,
+                  "y": 0
+                }
+              },
+              "filter": {
+                "name": "Unknown action (MARK AS FALLBACK ROUTE)",
+                "conditions": []
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "instant": true,
+    "version": 1,
+    "scenario": {
+      "roundtrips": 1,
+      "maxErrors": 3,
+      "autoCommit": true,
+      "autoCommitTriggerLast": true,
+      "sequential": false,
+      "confidential": false,
+      "dataloss": false,
+      "dlq": false,
+      "freshVariables": false
+    },
+    "designer": {
+      "orphans": []
+    }
+  }
+}

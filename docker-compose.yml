@@ -1,0 +1,60 @@
+# Local WooCommerce test store: MariaDB + WordPress + WP-CLI.
+# Usage: docker compose up -d && ./scripts/setup-store.sh
+services:
+  db:
+    image: mariadb:10.11
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: wordpress
+      MARIADB_USER: wordpress
+      MARIADB_PASSWORD: ${DB_PASSWORD:-change-me}
+      MARIADB_RANDOM_ROOT_PASSWORD: "1"
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      retries: 20
+
+  wordpress:
+    image: wordpress:php8.2-apache
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${WP_PORT:-8080}:80"
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: ${DB_PASSWORD:-change-me}
+      # Follow whatever host the request came in on (localhost or an HTTPS tunnel),
+      # so the REST API works from Make through ngrok/cloudflared without reconfiguring.
+      WORDPRESS_CONFIG_EXTRA: |
+        if (!empty($$_SERVER['HTTP_HOST'])) {
+          $$scheme = (!empty($$_SERVER['HTTPS']) && $$_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
+          define('WP_HOME', $$scheme . '://' . $$_SERVER['HTTP_HOST']);
+          define('WP_SITEURL', $$scheme . '://' . $$_SERVER['HTTP_HOST']);
+        }
+    volumes:
+      - wp_data:/var/www/html
+
+  wpcli:
+    image: wordpress:cli-php8.2
+    profiles: ["tools"]
+    user: "33:33"            # same uid as www-data in the wordpress image
+    depends_on: [wordpress]
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: ${DB_PASSWORD:-change-me}
+      HOME: /tmp
+    volumes:
+      - wp_data:/var/www/html
+      - ./seed:/seed:ro
+
+volumes:
+  db_data:
+  wp_data:
