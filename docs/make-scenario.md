@@ -201,7 +201,7 @@ The API key needs **Read/Write** permission for this call.
 ```json
 {
   "ok": {{if(36.statusCode = 201; true; false)}},
-  "message": "{{if(36.statusCode = 201; Done! Order #{{36.data.number}} for {{34.want}} x {{34.label}} (total ${{36.data.total}}) is created. We've saved it as pending and will email the payment link to {{1.payload.email}}.; Sorry, I couldn't create the order. A team member will follow up.)}}",
+  "message": "{{if(36.statusCode = 201; Done! Order #{{36.data.number}} for {{34.want}} x {{34.label}} (total ${{36.data.total}}) is created. It's saved as pending payment and our team will send the payment link to {{1.payload.email}}.; Sorry, I couldn't create the order. A team member will follow up.)}}",
   "data": { "order_id": "{{36.data.id}}", "payment_url": "{{36.data.payment_url}}" },
   "route": null
 }

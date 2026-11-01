@@ -14,10 +14,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import woo as woo_mod
 from woo import Woo, WooError, load_env
 
 load_env()
 woo = Woo()
+DEMO = os.environ.get("DEMO_MODE") == "1"
+DEMO_PAGE = Path(__file__).resolve().parent.parent / "demo" / "chat.html"
 
 STATUS_LABELS = {
     "pending": "pending payment", "processing": "being processed", "on-hold": "on hold",
@@ -156,7 +159,7 @@ def create_order(p):
         "customer_note": "Created by the AI support agent.",
     })
     return reply(True, f"Done! Order #{order['number']} for {qty} x {label} (total {money(order['total'])}) is created. "
-                       f"We've saved it as pending and will email the payment link to {p['email'].strip()}.",
+                       f"It's saved as pending payment and our team will send the payment link to {p['email'].strip()}.",
                  {"order_id": order["id"], "total": order["total"], "payment_url": order.get("payment_url")})
 
 
@@ -175,6 +178,12 @@ def hours_text():
     o, c = os.environ.get("BUSINESS_OPEN", "0900"), os.environ.get("BUSINESS_CLOSE", "1700")
     span = f"{DAY_NAMES[days[0]-1]}-{DAY_NAMES[days[-1]-1]}" if len(days) > 1 else DAY_NAMES[days[0]-1]
     return f"{span} {o[:2]}:{o[2:]}-{c[:2]}:{c[2:]} ({os.environ.get('STORE_TZ', 'America/New_York')})"
+
+
+def hours_state():
+    tz = ZoneInfo(os.environ.get("STORE_TZ", "America/New_York"))
+    now = datetime.now(tz)
+    return {"hours": hours_text(), "now": now.strftime("%a %H:%M ") + os.environ.get("STORE_TZ", ""), "open": is_open(now)}
 
 
 def business_hours(p):
@@ -225,6 +234,15 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(raw)
 
     def do_GET(self):
+        if DEMO and self.path == "/" and DEMO_PAGE.exists():
+            raw = DEMO_PAGE.read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(raw)))
+            self.end_headers()
+            return self.wfile.write(raw)
+        if DEMO and self.path == "/demo/config":
+            return self._send(hours_state())
         self._send({"ok": True, "service": "woo-support-webhook"})
 
     def do_POST(self):
@@ -232,7 +250,15 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
         except ValueError:
             return self._send(reply(False, "Invalid JSON."), 400)
+        if DEMO and self.path == "/demo/config":  # demo only: change business hours live
+            for k in ("STORE_TZ", "BUSINESS_DAYS", "BUSINESS_OPEN", "BUSINESS_CLOSE"):
+                if body.get(k):
+                    os.environ[k] = str(body[k])
+            return self._send(hours_state())
+        woo_mod.TRACE.calls = []
         result = handle(body)
+        if DEMO:  # not part of the contract: shows which Woo API calls were made
+            result = {**result, "debug": {"woo_calls": woo_mod.TRACE.calls}}
         print(f"{body.get('action')}: ok={result['ok']} route={result['route']}")
         self._send(result)
 

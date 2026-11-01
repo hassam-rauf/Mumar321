@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Woo AI Support Agent — demo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --bg:#f4f5f7; --ink:#1d2330; --muted:#6b7280; --brand:#7f54b3; --ok:#15803d; --bad:#b91c1c; --line:#e5e7eb; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.45 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; color:var(--ink); background:var(--bg);
+         height:100vh; display:grid; grid-template-rows:auto 1fr auto; }
+  header { display:flex; align-items:center; gap:16px; padding:12px 20px; background:#fff; border-bottom:1px solid var(--line); }
+  header h1 { font-size:17px; margin:0; }
+  #caption { margin-left:auto; background:var(--brand); color:#fff; padding:5px 12px; border-radius:999px; font-weight:600; font-size:14px; }
+  main { display:grid; grid-template-columns:1.15fr 1fr; gap:16px; padding:16px 20px; min-height:0; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:12px; min-height:0; }
+  #chat { display:flex; flex-direction:column; }
+  #chat .top { padding:12px 16px; border-bottom:1px solid var(--line); display:flex; gap:10px; align-items:center; }
+  .avatar { width:32px; height:32px; border-radius:50%; background:var(--brand); color:#fff; display:grid; place-items:center; font-weight:700; }
+  #log { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:8px; }
+  .msg { max-width:80%; padding:9px 13px; border-radius:14px; white-space:pre-wrap; }
+  .bot { background:#f1ecf8; align-self:flex-start; border-bottom-left-radius:4px; }
+  .user { background:var(--brand); color:#fff; align-self:flex-end; border-bottom-right-radius:4px; }
+  .sys { align-self:center; font-size:13px; color:#fff; background:#0f766e; padding:6px 12px; border-radius:8px; }
+  .typing { color:var(--muted); font-style:italic; }
+  form { display:flex; gap:8px; padding:12px; border-top:1px solid var(--line); }
+  input { flex:1; padding:10px 12px; border:1px solid var(--line); border-radius:10px; font:inherit; }
+  button { padding:9px 14px; border:0; border-radius:10px; background:var(--brand); color:#fff; font:inherit; font-weight:600; cursor:pointer; }
+  #side { display:flex; flex-direction:column; gap:12px; min-height:0; overflow:hidden; }
+  #side h2 { font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin:0 0 6px; }
+  .box { padding:12px 14px; }
+  #hours .row { display:flex; justify-content:space-between; gap:8px; font-size:14px; }
+  .pill { font-weight:700; padding:1px 8px; border-radius:6px; color:#fff; }
+  .open { background:var(--ok); } .closed { background:var(--bad); }
+  pre { margin:0; font:12.5px/1.4 ui-monospace,Menlo,Consolas,monospace; white-space:pre-wrap; word-break:break-word; }
+  #req, #res { max-height:150px; overflow:hidden; }
+  #calls div { font:12.5px ui-monospace,Menlo,Consolas,monospace; padding:2px 0; }
+  .s2 { color:var(--ok); } .s4 { color:var(--bad); }
+  footer { padding:8px 20px; font-size:12.5px; color:var(--muted); background:#fff; border-top:1px solid var(--line); }
+  #overlay { position:fixed; inset:0; background:rgba(29,35,48,.94); color:#fff; display:none; place-items:center; text-align:center; z-index:9; }
+  #overlay h2 { font-size:34px; margin:0 0 14px; } #overlay p { font-size:18px; opacity:.9; margin:6px 0; white-space:pre-line; }
+</style>
+</head>
+<body>
+<header>
+  <h1>WooCommerce AI Support Agent</h1><span style="color:var(--muted)">working prototype</span>
+  <span id="caption">Demo</span>
+</header>
+
+<main>
+  <section id="chat" class="card">
+    <div class="top"><div class="avatar">S</div><div><b>Store Support</b><br><small style="color:var(--muted)">AI agent</small></div></div>
+    <div id="log"></div>
+    <form id="f"><input id="in" placeholder="Type a message…" autocomplete="off"><button>Send</button></form>
+  </section>
+
+  <section id="side">
+    <div class="card box" id="hours">
+      <h2>Business hours config</h2>
+      <div class="row"><span id="h-hours">…</span><span id="h-state" class="pill">…</span></div>
+      <div class="row" style="color:var(--muted)"><span>Store time now: <span id="h-now">…</span></span>
+        <button id="h-open" type="button" style="padding:3px 10px;font-size:12px">Set hours 24/7</button></div>
+    </div>
+    <div class="card box"><h2>Webhook request → Make scenario contract</h2><pre id="req">—</pre></div>
+    <div class="card box"><h2>Webhook response</h2><pre id="res">—</pre></div>
+    <div class="card box"><h2>WooCommerce REST API calls</h2><div id="calls">—</div></div>
+  </section>
+</main>
+
+<footer>
+  Chat UI: lightweight test client (Voiceflow handles this in production) ·
+  Backend: reference webhook with the same logic as the Make scenario ·
+  Store data: local mock store in WooCommerce REST API v3 format
+</footer>
+
+<div id="overlay"><div><h2 id="o-t"></h2><p id="o-s"></p></div></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const PRODUCTS = ["coffee mug","mug","t-shirt","tee","trucker cap","cap","water bottle","bottle","tote","notebook","sticker","phone case","socks","hoodie"];
+const SIZES = {small:"S", s:"S", medium:"M", m:"M", large:"L", l:"L", "extra large":"XL", xl:"XL"};
+
+function add(cls, text) {
+  const d = document.createElement("div"); d.className = "msg " + cls; d.textContent = text;
+  $("log").appendChild(d); $("log").scrollTop = 1e9; return d;
+}
+async function bot(text) { const t = add("bot typing", "typing…"); await sleep(650); t.className = "msg bot"; t.textContent = text; $("log").scrollTop = 1e9; }
+
+async function api(action, payload) {
+  const body = { action, payload };
+  $("req").textContent = JSON.stringify(body, null, 2);
+  $("res").textContent = "…"; $("calls").textContent = "…";
+  const r = await fetch("/", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const res = await r.json();
+  const { debug, ...contract } = res;
+  $("res").textContent = JSON.stringify(contract, null, 2);
+  const calls = (debug && debug.woo_calls) || [];
+  $("calls").innerHTML = calls.length ? calls.map(c => `<div class="${/-> 2/.test(c) ? "s2" : "s4"}">${c}</div>`).join("") : "<div>(none — no store call needed)</div>";
+  return res;
+}
+
+async function refreshHours(update) {
+  const r = await fetch("/demo/config", update ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(update) } : {});
+  const h = await r.json();
+  $("h-hours").textContent = h.hours; $("h-now").textContent = h.now;
+  $("h-state").textContent = h.open ? "OPEN" : "CLOSED"; $("h-state").className = "pill " + (h.open ? "open" : "closed");
+}
+$("h-open").onclick = () => refreshHours({ BUSINESS_DAYS: "1,2,3,4,5,6,7", BUSINESS_OPEN: "0000", BUSINESS_CLOSE: "2400" });
+
+// ---- tiny dialog manager (Voiceflow's job in production: intents + slot filling) ----
+let flow = null, slots = {}, waiting = null;
+const reset = () => { flow = null; slots = {}; waiting = null; };
+
+function extract(text) {
+  const t = text.toLowerCase(), out = {};
+  const email = text.match(/[\w.+-]+@[\w-]+\.[\w.]+/); if (email) out.email = email[0];
+  const num = text.match(/#?\b(\d{1,7})\b/); if (num) out.number = num[1];
+  const prod = PRODUCTS.find(p => t.includes(p)); if (prod) out.product_name = prod;
+  for (const [k, v] of Object.entries(SIZES)) if (new RegExp(`\\b${k}\\b`).test(t)) { out.option = v; break; }
+  return out;
+}
+function intent(t) {
+  t = t.toLowerCase();
+  if (/(talk|speak|call|human|person|someone|agent|representative)/.test(t)) return "human";
+  if (/(track|where('| i)s my order|order status|status of my order)/.test(t)) return "track";
+  if (/(want to order|like to order|i want to buy|buy|purchase|place an order|order \d)/.test(t)) return "order";
+  if (/(in stock|have .*stock|do you have|available|stock)/.test(t)) return "stock";
+  return null;
+}
+
+const ASK = {
+  order_number: "Sure — what's your order number?", email: "And the email you used at checkout?",
+  product_name: "Which product?", quantity: "How many would you like?", option: "Which size?",
+  name: "Great. What's your full name?", phone: "And a phone number we can reach you on?",
+  reason: "Briefly, what's the call about?",
+};
+const NEED = { track: ["order_number", "email"], stock: ["product_name"],
+               order: ["product_name", "quantity", "name", "email", "phone"], callback: ["name", "phone", "reason"] };
+
+function fill(text) {
+  const x = extract(text);
+  if (waiting === "name") slots.name = text.trim();
+  else if (waiting === "reason") slots.reason = text.trim();
+  else if (waiting === "phone") slots.phone = text.trim();
+  else if (waiting === "order_number" && x.number) slots.order_number = x.number;
+  else if (waiting === "quantity" && x.number) slots.quantity = x.number;
+  if (x.email) slots.email = x.email;
+  if (x.product_name && !slots.product_name) slots.product_name = x.product_name;
+  if (x.option) slots.option = x.option;
+  if (flow === "track" && x.number && !slots.order_number) slots.order_number = x.number;
+  if (flow === "order" && x.number && !slots.quantity && waiting !== "phone") slots.quantity = x.number;
+}
+
+async function step() {
+  const missing = NEED[flow].find(k => !slots[k]);
+  if (missing) { waiting = missing; return bot(ASK[missing]); }
+  waiting = null;
+  if (flow === "track") {
+    const r = await api("track_order", { order_number: slots.order_number, email: slots.email });
+    await bot(r.message); reset();
+  } else if (flow === "stock") {
+    const r = await api("check_stock", { product_name: slots.product_name, option: slots.option || "" });
+    await bot(r.message);
+    if (/which option/i.test(r.message)) { waiting = "option"; slots._ask_option = 1; return; }
+    reset();
+  } else if (flow === "order") {
+    if (!slots.confirmed) {
+      waiting = "confirm";
+      return bot(`So that's ${slots.quantity} x ${slots.product_name}${slots.option ? " (" + slots.option + ")" : ""} for ${slots.name}, ${slots.email}. Shall I place it?`);
+    }
+    const r = await api("create_order", { name: slots.name, email: slots.email, phone: slots.phone,
+      product_name: slots.product_name, option: slots.option || "", quantity: slots.quantity });
+    await bot(r.message); reset();
+  } else if (flow === "callback") {
+    const r = await api("callback_request", { name: slots.name, phone: slots.phone, reason: slots.reason });
+    await bot(r.message); reset();
+  }
+}
+
+async function onUser(text) {
+  add("user", text);
+  if (waiting === "confirm") {
+    if (/^(y|yes|yeah|yep|sure|correct|please)/i.test(text.trim())) { slots.confirmed = 1; return step(); }
+    reset(); return bot("No problem, I won't place it. Anything else?");
+  }
+  const it = intent(text);
+  if (it && !waiting) { reset(); flow = it; }
+  if (!flow) return bot("I can track an order, check stock, take an order, or connect you to our team.");
+  if (flow === "human") {
+    const r = await api("business_hours", {});
+    await bot(r.message);
+    if (r.route === "transfer") { await sleep(500); add("sys", "📞 route = transfer → the call-forward step to the support line runs here"); reset(); }
+    else { flow = "callback"; slots = {}; waiting = "name"; await bot(ASK.name); }
+    return;
+  }
+  fill(text);
+  return step();
+}
+
+$("f").onsubmit = e => { e.preventDefault(); const v = $("in").value.trim(); if (!v) return; $("in").value = ""; onUser(v); };
+
+// ---- hooks used by the recording script ----
+window.demo = {
+  caption: t => { $("caption").textContent = t; },
+  card: async (t, s, ms = 4000) => { $("o-t").textContent = t; $("o-s").textContent = s || ""; $("overlay").style.display = "grid"; await sleep(ms); $("overlay").style.display = "none"; },
+  clear: () => { $("log").innerHTML = ""; ["req", "res"].forEach(i => $(i).textContent = "—"); $("calls").textContent = "—"; reset(); },
+  refreshHours,
+};
+refreshHours();
+add("bot", "Hi! I can track your order, check stock, take an order, or connect you to our team. How can I help?");
+</script>
+</body>
+</html>

@@ -12,7 +12,17 @@ scenario does the backend work against the WooCommerce REST API.
 | Inventory check | `GET /products?search=`, `GET /products/{id}/variations` | Per-variation stock for variable products |
 | Business-hours routing | – | Store-timezone hours from config → call forward (open) or callback message (closed) |
 
-![demo screenshot placeholder](docs/img/demo.png)
+**Demo video:** [demo/woo-ai-support-agent-demo.mp4](demo/woo-ai-support-agent-demo.mp4) (1:47).
+It shows the browser test client calling the reference webhook against the local mock store. Every request,
+response and Woo API call is visible on screen.
+
+Run the same demo yourself:
+
+```bash
+export WOO_URL=http://localhost:8099 WOO_CONSUMER_KEY=ck_demo WOO_CONSUMER_SECRET=cs_demo DEMO_MODE=1 STORE_TZ=America/Denver
+python3 scripts/mock_woo.py & python3 scripts/webhook_server.py &
+# open http://localhost:8787  — or record it: node demo/record_demo.js http://localhost:8787 27
+```
 
 ## Architecture
 
@@ -44,6 +54,8 @@ scripts/test_api.py       checks every Woo request the scenario uses
 scripts/webhook_server.py reference implementation of the Make scenario (same contract)
 scripts/test_webhook.py   runs every conversation case against Make or the reference server
 scripts/mock_woo.py       offline Woo API mock (no Docker needed)
+demo/chat.html            browser test client + live request/response panel (DEMO_MODE=1)
+demo/record_demo.js       Playwright script that records the demo video
 make/blueprint.json       importable Make scenario (needs manual review — see make/README.md)
 docs/make-scenario.md     step-by-step Make build guide
 docs/voiceflow-setup.md   intents, slots, API step, call-forward branch

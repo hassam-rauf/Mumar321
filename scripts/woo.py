@@ -3,7 +3,7 @@
 Auth: HTTPS -> Basic auth with consumer key/secret (same as Make's HTTP module).
       HTTP  -> OAuth 1.0a one-legged signature (WooCommerce rejects Basic auth over plain HTTP).
 """
-import base64, hashlib, hmac, json, os, secrets, time, urllib.error, urllib.parse, urllib.request
+import base64, hashlib, hmac, json, os, secrets, threading, time, urllib.error, urllib.parse, urllib.request
 from pathlib import Path
 
 
@@ -16,6 +16,14 @@ def load_env(path=Path(__file__).resolve().parent.parent / ".env"):
         if line and not line.startswith("#") and "=" in line:
             k, v = line.split("=", 1)
             os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+
+
+TRACE = threading.local()  # per-request list of Woo calls (shown in demo mode)
+
+
+def _trace(entry):
+    if hasattr(TRACE, "calls"):
+        TRACE.calls.append(entry)
 
 
 class WooError(Exception):
@@ -65,10 +73,14 @@ class Woo:
             data = json.dumps(body).encode()
             headers["Content-Type"] = "application/json"
         req = urllib.request.Request(url, data=data, headers=headers, method=method)
+        shown = "/wp-json/wc/v3" + path + ("?" + urllib.parse.urlencode(
+            {k: v for k, v in params.items() if not k.startswith("oauth_")}) if any(not k.startswith("oauth_") for k in params) else "")
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as r:
+                _trace(f"{method} {shown} -> {r.status}")
                 return json.loads(r.read() or b"null")
         except urllib.error.HTTPError as e:
+            _trace(f"{method} {shown} -> {e.code}")
             raw = e.read().decode(errors="replace")
             try:
                 raw = json.loads(raw)
