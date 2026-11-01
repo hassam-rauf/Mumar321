@@ -31,6 +31,17 @@ def chunks(text, maxw=9):
     return out + ([" ".join(cur)] if cur else [])
 
 
+# ---- per-scene speaking time: real clip length with --voice-dir, otherwise estimated
+args = sys.argv[1:]
+dur = {}
+if "--voice-dir" in args:
+    vd = Path(args[args.index("--voice-dir") + 1])
+    for k in narr:
+        f = next(vd.glob(f"{k}.*"), None)
+        if f:
+            dur[k] = float(subprocess.check_output(["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                                                    "-of", "csv=p=0", str(f)]))
+
 # ---- subtitles + narration sheet
 events, sheet = [], []
 keys = [s["key"] for s in scenes]
@@ -40,8 +51,9 @@ for s in scenes:
     t = s["start"] + 0.4
     end = scenes[keys.index(s["key"]) + 1]["start"]
     sheet.append(f"**{int(s['start']//60)}:{int(s['start']%60):02d} - {int(end//60)}:{int(end%60):02d}** ({s['key']})\n\n> {narr[s['key']]}\n")
+    wps = len(narr[s["key"]].split()) / dur[s["key"]] if s["key"] in dur else WPS
     for c in chunks(narr[s["key"]]):
-        d = len(c.split()) / WPS
+        d = len(c.split()) / wps
         events.append((t, t + d, c)); t += d
 
 (OUT / "subs.ass").write_text(
@@ -60,7 +72,6 @@ for s in scenes:
 webm = glob.glob(str(OUT / "*.webm"))[0]
 vf = f"pad=1280:800:0:0:color=0x1d2330,ass={OUT / 'subs.ass'}"
 cmd = ["ffmpeg", "-y", "-loglevel", "error", "-i", webm]
-args = sys.argv[1:]
 if "--voice" in args:
     cmd += ["-i", args[args.index("--voice") + 1]]
     audio = ["-filter_complex", f"[0:v]{vf}[v];[1:a]loudnorm=I=-16:TP=-1.5[a]", "-map", "[v]", "-map", "[a]"]
