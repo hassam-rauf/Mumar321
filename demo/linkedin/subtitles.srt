@@ -1,0 +1,140 @@
+1
+00:00:00,944 --> 00:00:04,857
+This is an AI support agent for a WooCommerce
+
+2
+00:00:04,857 --> 00:00:06,596
+store. It tracks orders,
+
+3
+00:00:06,596 --> 00:00:08,770
+checks stock, takes new orders,
+
+4
+00:00:08,770 --> 00:00:11,814
+and routes calls based on business hours.
+
+5
+00:00:11,814 --> 00:00:14,857
+Let me show you how it works.
+
+6
+00:00:16,268 --> 00:00:20,181
+First, order tracking. The customer shares an order number
+
+7
+00:00:20,181 --> 00:00:24,094
+and their email. The agent checks the store's API,
+
+8
+00:00:24,094 --> 00:00:26,268
+and replies with the status,
+
+9
+00:00:26,268 --> 00:00:28,877
+the items, and the tracking number.
+
+10
+00:00:28,877 --> 00:00:32,790
+On the right, you can see each request behind
+
+11
+00:00:32,790 --> 00:00:33,659
+the scenes.
+
+12
+00:00:35,060 --> 00:00:38,103
+If the email doesn't match the order,
+
+13
+00:00:38,103 --> 00:00:40,277
+the agent gives a polite,
+
+14
+00:00:40,277 --> 00:00:42,017
+general answer. That way,
+
+15
+00:00:42,017 --> 00:00:45,060
+nobody can look up someone else's order.
+
+16
+00:00:46,461 --> 00:00:49,939
+Next, inventory. The agent reads live stock levels.
+
+17
+00:00:49,939 --> 00:00:51,678
+For products with sizes,
+
+18
+00:00:51,678 --> 00:00:53,852
+it checks each size separately,
+
+19
+00:00:53,852 --> 00:00:57,331
+which is a very common source of mistakes.
+
+20
+00:01:08,030 --> 00:01:11,073
+The agent can also take an order.
+
+21
+00:01:11,073 --> 00:01:13,247
+It collects the customer's details,
+
+22
+00:01:13,247 --> 00:01:14,987
+confirms them, checks stock,
+
+23
+00:01:14,987 --> 00:01:18,030
+and creates a pending order in WooCommerce.
+
+24
+00:01:27,199 --> 00:01:30,242
+Outside business hours, the call isn't transferred.
+
+25
+00:01:30,242 --> 00:01:33,286
+Instead, the agent takes a callback request:
+
+26
+00:01:33,286 --> 00:01:37,199
+name, phone number, and the reason for the call.
+
+27
+00:01:46,237 --> 00:01:50,150
+During business hours, the same request goes straight to
+
+28
+00:01:50,150 --> 00:01:54,063
+a human. The hours and the timezone are simple
+
+29
+00:01:54,063 --> 00:01:55,367
+settings, not hard-coded.
+
+30
+00:01:56,767 --> 00:01:59,810
+This demo runs on a test store.
+
+31
+00:01:59,810 --> 00:02:02,419
+In production, Voiceflow handles the conversation,
+
+32
+00:02:02,419 --> 00:02:05,028
+and Make runs this same logic.
+
+33
+00:02:05,028 --> 00:02:08,941
+I'm Hassam Rauf, and I build AI agents and
+
+34
+00:02:08,941 --> 00:02:12,854
+automations for businesses. If you'd like one for your
+
+35
+00:02:12,854 --> 00:02:14,158
+store, let's talk.
+

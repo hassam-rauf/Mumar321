@@ -1,0 +1,10 @@
+{
+  "intro":    "This is an AI support agent for a WooCommerce store. It tracks orders, checks stock, takes new orders, and routes calls based on business hours. Let me show you how it works.",
+  "track":    "First, order tracking. The customer shares an order number and their email. The agent checks the store's API, and replies with the status, the items, and the tracking number. On the right, you can see each request behind the scenes.",
+  "wrong":    "If the email doesn't match the order, the agent gives a polite, general answer. That way, nobody can look up someone else's order.",
+  "stock":    "Next, inventory. The agent reads live stock levels. For products with sizes, it checks each size separately, which is a very common source of mistakes.",
+  "order":    "The agent can also take an order. It collects the customer's details, confirms them, checks stock, and creates a pending order in WooCommerce.",
+  "closed":   "Outside business hours, the call isn't transferred. Instead, the agent takes a callback request: name, phone number, and the reason for the call.",
+  "open":     "During business hours, the same request goes straight to a human. The hours and the timezone are simple settings, not hard-coded.",
+  "outro":    "This demo runs on a test store. In production, Voiceflow handles the conversation, and Make runs this same logic. I'm Hassam Rauf, and I build AI agents and automations for businesses. If you'd like one for your store, let's talk."
+}
