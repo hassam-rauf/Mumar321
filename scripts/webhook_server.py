@@ -22,6 +22,7 @@ load_env()
 woo = Woo()
 DEMO = os.environ.get("DEMO_MODE") == "1"
 DEMO_PAGE = Path(__file__).resolve().parent.parent / "demo" / "chat.html"
+VOICE_PAGE = Path(__file__).resolve().parent.parent / "demo" / "voice_call.html"
 
 STATUS_LABELS = {
     "pending": "pending payment", "processing": "being processed", "on-hold": "on hold",
@@ -244,6 +245,13 @@ class Handler(BaseHTTPRequestHandler):
             return self.wfile.write(raw)
         if DEMO and self.path == "/demo/config":
             return self._send(hours_state())
+        if DEMO and self.path == "/voice" and VOICE_PAGE.exists():  # simulated phone-call demo
+            raw = VOICE_PAGE.read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(raw)))
+            self.end_headers()
+            return self.wfile.write(raw)
         self._send({"ok": True, "service": "woo-support-webhook"})
 
     def do_POST(self):
@@ -260,7 +268,11 @@ class Handler(BaseHTTPRequestHandler):
             secret = os.environ.get("VAPI_SECRET", "")
             if secret and self.headers.get("x-vapi-secret") != secret:
                 return self._send({"error": "unauthorized"}, 401)
-            return self._send(handle_vapi(body, handle))
+            woo_mod.TRACE.calls = []
+            result = handle_vapi(body, handle)
+            if DEMO and result:  # not part of Vapi's contract: shows which Woo API calls were made
+                result = {**result, "debug": {"woo_calls": woo_mod.TRACE.calls}}
+            return self._send(result)
         woo_mod.TRACE.calls = []
         result = handle(body)
         if DEMO:  # not part of the contract: shows which Woo API calls were made

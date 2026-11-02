@@ -64,6 +64,18 @@ or attach a phone number to it. Try:
 
 Each finished call is logged to `data/calls.jsonl` (summary, transcript, recording URL).
 
+## Simulated-call video (no Vapi account needed)
+
+`demo/vapi/voice-agent-demo.mp4` (77 s, silent) shows a phone-call screen where the caller's lines
+are scripted and every agent answer is the real tool result from `/vapi`. It is labelled
+"Simulated call · real backend" on screen. Re-record it with:
+
+```bash
+DEMO_MODE=1 FORCE_ROUTE=message python3 scripts/webhook_server.py &   # plus mock_woo.py, see step 1
+node demo/record_voice_demo.js http://localhost:8787 27
+ffmpeg -i demo/out/*.webm -c:v libx264 -crf 22 -pix_fmt yuv420p -movflags +faststart -an demo/vapi/voice-agent-demo.mp4
+```
+
 ## Recording the demo
 
 Record your screen with the Vapi browser call on one side and the `webhook_server.py` terminal on
