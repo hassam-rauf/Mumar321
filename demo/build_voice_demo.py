@@ -25,5 +25,5 @@ filters.append(f"{mix}amix=inputs={len(timeline)}:normalize=0,apad[aout]")
 subprocess.run(["ffmpeg", "-loglevel", "error", "-y", *inputs, "-filter_complex", ";".join(filters),
                 "-map", "0:v", "-map", "[aout]", "-shortest",
                 "-c:v", "libx264", "-preset", "slow", "-crf", "22", "-pix_fmt", "yuv420p",
-                "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", str(dest)], check=True)
+                "-c:a", "aac", "-b:a", "160k", "-ac", "2", "-ar", "48000", "-movflags", "+faststart", str(dest)], check=True)
 print(f"Wrote {dest}")
