@@ -14,6 +14,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import gemini_live
 import woo as woo_mod
 from vapi_adapter import handle_vapi
 from woo import Woo, WooError, load_env
@@ -23,6 +24,7 @@ woo = Woo()
 DEMO = os.environ.get("DEMO_MODE") == "1"
 DEMO_PAGE = Path(__file__).resolve().parent.parent / "demo" / "chat.html"
 VOICE_PAGE = Path(__file__).resolve().parent.parent / "demo" / "voice_call.html"
+GEMINI_PAGE = Path(__file__).resolve().parent.parent / "demo" / "gemini_call.html"
 
 STATUS_LABELS = {
     "pending": "pending payment", "processing": "being processed", "on-hold": "on hold",
@@ -235,23 +237,28 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(raw)
 
+    def _page(self, page):
+        raw = page.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
+
+    def _local(self):
+        """True only for requests from this machine (a tunnel adds forwarding headers)."""
+        forwarded = any(self.headers.get(h) for h in ("X-Forwarded-For", "Cf-Connecting-Ip", "Forwarded"))
+        return self.client_address[0] in ("127.0.0.1", "::1") and not forwarded
+
     def do_GET(self):
         if DEMO and self.path == "/" and DEMO_PAGE.exists():
-            raw = DEMO_PAGE.read_bytes()
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.send_header("Content-Length", str(len(raw)))
-            self.end_headers()
-            return self.wfile.write(raw)
+            return self._page(DEMO_PAGE)
         if DEMO and self.path == "/demo/config":
             return self._send(hours_state())
         if DEMO and self.path == "/voice" and VOICE_PAGE.exists():  # simulated phone-call demo
-            raw = VOICE_PAGE.read_bytes()
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.send_header("Content-Length", str(len(raw)))
-            self.end_headers()
-            return self.wfile.write(raw)
+            return self._page(VOICE_PAGE)
+        if DEMO and self.path.split("?")[0] == "/gemini" and GEMINI_PAGE.exists():  # live call via Gemini Live
+            return self._page(GEMINI_PAGE)
         self._send({"ok": True, "service": "woo-support-webhook"})
 
     def do_POST(self):
@@ -264,6 +271,18 @@ class Handler(BaseHTTPRequestHandler):
                 if body.get(k):
                     os.environ[k] = str(body[k])
             return self._send(hours_state())
+        if DEMO and self.path == "/gemini/session":  # ephemeral token: local browser only
+            if not self._local():
+                return self._send({"error": "local only"}, 403)
+            try:
+                return self._send(gemini_live.session())
+            except gemini_live.GeminiError as e:
+                print(f"[gemini] {e}", file=sys.stderr)
+                return self._send({"error": str(e)}, 502)
+        if DEMO and self.path == "/gemini/tool":
+            woo_mod.TRACE.calls = []
+            result = gemini_live.tool_call(body, handle)
+            return self._send({**result, "debug": {"woo_calls": woo_mod.TRACE.calls}})
         if self.path.rstrip("/") == "/vapi":  # Vapi voice agent (see docs/vapi-setup.md)
             secret = os.environ.get("VAPI_SECRET", "")
             if secret and self.headers.get("x-vapi-secret") != secret:

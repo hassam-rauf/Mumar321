@@ -55,7 +55,8 @@ def handle_vapi(body, handle):
         for call_id, name, args in _tool_calls(message):
             res = handle({"action": name, "payload": args})
             results.append({"toolCallId": call_id, "result": to_result_text(res)})
-            print(f"vapi tool {name}: ok={res['ok']} route={res.get('route')}")
+            print(f"vapi tool {name} {json.dumps(args)}: ok={res['ok']} route={res.get('route')}")
+            print(f"  -> {res['message']}", flush=True)
         return {"results": results}
 
     if kind == "end-of-call-report":

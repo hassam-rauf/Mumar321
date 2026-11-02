@@ -25,6 +25,13 @@ python3 scripts/mock_woo.py & python3 scripts/webhook_server.py &
 # open http://localhost:8787  — or record it: node demo/record_demo.js http://localhost:8787 27
 ```
 
+**Live voice call, free (Gemini Live):** set `GEMINI_API_KEY` in `.env` (free key from
+[AI Studio](https://aistudio.google.com/apikey)), run the mock store and `webhook_server.py` with
+`DEMO_MODE=1`, and open `http://localhost:8787/gemini` in Chrome. The browser talks to Gemini Live
+directly with a single-use token from the server; the prompt and tools come from
+`vapi/assistant.json`, and every tool call goes through the same backend (`scripts/gemini_live.py`).
+Recording guide: [demo/vapi/recording-script.md](demo/vapi/recording-script.md).
+
 ## Architecture
 
 ```

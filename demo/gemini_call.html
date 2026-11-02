@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Live voice agent demo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --bg:#f4f5f7; --ink:#1d2330; --muted:#6b7280; --brand:#7f54b3; --ok:#15803d; --bad:#b91c1c; --line:#e5e7eb; }
+  * { box-sizing:border-box; }
+  body { margin:0; height:100vh; min-height:640px; overflow:hidden; font:15px/1.45 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; color:var(--ink); background:var(--bg); display:flex; flex-direction:column; }
+  header { display:flex; align-items:center; gap:14px; padding:12px 20px; background:#fff; border-bottom:1px solid var(--line); }
+  header h1 { font-size:17px; margin:0; }
+  .tag { font-size:12px; font-weight:700; color:#065f46; background:#d1fae5; border:1px solid #6ee7b7; padding:3px 10px; border-radius:999px; }
+  #caption { margin-left:auto; background:var(--brand); color:#fff; padding:5px 14px; border-radius:999px; font-weight:600; font-size:14px; }
+  #caption.err { background:var(--bad); }
+  main { flex:1; display:grid; grid-template-columns:440px 1fr; gap:16px; padding:16px 20px; min-height:0; }
+  .phone { background:linear-gradient(160deg,#1e1b4b,#3b0764); border-radius:22px; color:#fff; display:flex; flex-direction:column; padding:22px 20px 16px; min-height:0; box-shadow:0 14px 34px rgba(30,27,75,.25); }
+  .who { text-align:center; }
+  .ring { width:92px; height:92px; margin:0 auto 10px; border-radius:50%; background:#a78bfa; display:grid; place-items:center; font-size:38px; position:relative; }
+  .ring.live::before, .ring.live::after { content:""; position:absolute; inset:-10px; border-radius:50%; border:3px solid rgba(196,181,253,.6); animation:pulse 1.2s ease-out infinite; }
+  .ring.live::after { animation-delay:.6s; }
+  @keyframes pulse { from { transform:scale(.9); opacity:1 } to { transform:scale(1.35); opacity:0 } }
+  .who b { font-size:19px; display:block; } .who small { opacity:.75; }
+  #timer { font-variant-numeric:tabular-nums; opacity:.85; margin-top:2px; }
+  .wave { display:flex; gap:4px; justify-content:center; align-items:center; height:34px; margin:10px 0 6px; }
+  .wave i { width:5px; height:6px; border-radius:3px; background:rgba(255,255,255,.35); transition:height .08s; }
+  .wave.on i { background:#fff; }
+  #speaker { text-align:center; font-size:13px; letter-spacing:.06em; text-transform:uppercase; opacity:.8; height:18px; }
+  #transcript { flex:1; overflow:hidden; display:flex; flex-direction:column; justify-content:flex-end; gap:8px; margin:8px 0 12px; }
+  .line { padding:8px 12px; border-radius:12px; font-size:14.5px; max-width:92%; }
+  .line small { display:block; font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; opacity:.75; }
+  .line.agent { background:rgba(255,255,255,.14); align-self:flex-start; }
+  .line.caller { background:rgba(45,212,191,.28); align-self:flex-end; }
+  #call { border:0; border-radius:999px; padding:12px; font:inherit; font-weight:700; font-size:16px; color:#fff; background:#16a34a; cursor:pointer; }
+  #call.end { background:#dc2626; } #call:disabled { opacity:.6; cursor:wait; }
+  #side { display:grid; grid-template-rows:auto auto 1fr; gap:12px; min-height:0; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px 14px; min-height:0; overflow:hidden; }
+  .card h2 { font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin:0 0 6px; }
+  pre { margin:0; font:12.5px/1.4 ui-monospace,Menlo,Consolas,monospace; white-space:pre-wrap; word-break:break-word; }
+  #calls div { font:12.5px ui-monospace,Menlo,Consolas,monospace; padding:2px 0; color:var(--ok); }
+  .flash { animation:flash .9s; } @keyframes flash { from { background:#ede9fe } to { background:#fff } }
+  footer { padding:8px 20px; font-size:12.5px; color:var(--muted); background:#fff; border-top:1px solid var(--line); }
+  @media (max-width:900px) { body { overflow:auto; height:auto; } main { grid-template-columns:1fr; } .phone { min-height:520px; } }
+</style></head>
+<body>
+<header>
+  <h1>WooCommerce AI Phone Agent</h1><span style="color:var(--muted)">voice tools → store API</span>
+  <span class="tag">Live call · real backend</span>
+  <span id="caption">Ready</span>
+</header>
+<main>
+  <section class="phone">
+    <div class="who"><div class="ring" id="ring">🛍️</div><b>Store Voice Agent</b><small>Web call · Gemini Live</small><div id="timer">00:00</div></div>
+    <div class="wave" id="wave"></div>
+    <div id="speaker"></div>
+    <div id="transcript"></div>
+    <button id="call" type="button">Start call</button>
+  </section>
+  <section id="side">
+    <div class="card" id="c-req"><h2>Agent tool call → POST /gemini/tool</h2><pre id="req">–</pre></div>
+    <div class="card" id="c-res"><h2>Tool result (what the agent says)</h2><pre id="res">–</pre></div>
+    <div class="card" id="c-woo"><h2>WooCommerce REST API calls</h2><div id="calls">–</div></div>
+  </section>
+</main>
+<footer>Live voice call: Gemini Live hears the caller and speaks; every store fact comes from the same backend tools the Vapi phone agent uses (vapi/assistant.json). Test store with demo data.</footer>
+<script>
+const $ = id => document.getElementById(id);
+const WS = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained";
+const NO_MIC = new URLSearchParams(location.search).has("nomic");  // testing without a microphone
+const BARS = 26;
+for (let i = 0; i < BARS; i++) $("wave").appendChild(document.createElement("i"));
+
+let ws = null, mic = null, out = null, timer = null, started = 0, hangingUp = false, ready = false;
+
+// ---------------------------------------------------------------- UI
+function caption(text, err) { $("caption").textContent = text; $("caption").classList.toggle("err", !!err); }
+function flash(id) { const el = $(id); el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); }
+let bubble = { who: null, el: null };
+function say(who, text) {
+  if (bubble.who !== who) {
+    const el = document.createElement("div");
+    el.className = "line " + who;
+    el.innerHTML = `<small>${who === "agent" ? "Agent" : "Caller"}</small><span></span>`;
+    $("transcript").appendChild(el);
+    bubble = { who, el };
+  }
+  bubble.el.querySelector("span").textContent += text;
+  while ($("transcript").children.length > 8) $("transcript").firstChild.remove();
+}
+function levels(v, who) {
+  [...$("wave").children].forEach((b, i) => b.style.height = 6 + Math.round(v * 28 * (0.4 + Math.abs(Math.sin(i * 1.7 + Date.now() / 140)))) + "px");
+  $("wave").classList.toggle("on", v > 0.05);
+  if (v > 0.05) $("speaker").textContent = who === "agent" ? "Agent speaking" : "Caller speaking";
+}
+
+// ---------------------------------------------------------------- audio
+const WORKLET = `class Mic extends AudioWorkletProcessor {
+  process(inputs) { const ch = inputs[0][0]; if (ch) this.port.postMessage(ch.slice(0)); return true; }
+} registerProcessor("mic", Mic);`;
+
+function b64(bytes) {
+  let s = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+
+async function startMic() {
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+  const ctx = new AudioContext({ sampleRate: 16000 });  // Chrome resamples the mic to 16 kHz for us
+  await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET], { type: "application/javascript" })));
+  const node = new AudioWorkletNode(ctx, "mic");
+  const mute = ctx.createGain(); mute.gain.value = 0;
+  ctx.createMediaStreamSource(stream).connect(node).connect(mute).connect(ctx.destination);
+  let pending = [], n = 0;
+  node.port.onmessage = e => {
+    const f = e.data; pending.push(f); n += f.length;
+    let sum = 0; for (const x of f) sum += x * x;
+    if (!agentTalking()) levels(Math.min(1, Math.sqrt(sum / f.length) * 6), "caller");
+    if (n < 1600) return;  // send 100 ms chunks
+    const pcm = new Int16Array(n); let o = 0;
+    for (const c of pending) for (const x of c) pcm[o++] = Math.max(-1, Math.min(1, x)) * 0x7fff;
+    pending = []; n = 0;
+    if (ready && ws && ws.readyState === 1)
+      ws.send(JSON.stringify({ realtimeInput: { audio: { data: b64(new Uint8Array(pcm.buffer)), mimeType: "audio/pcm;rate=16000" } } }));
+  };
+  return { ctx, stream };
+}
+
+function startSpeaker() {
+  const ctx = new AudioContext({ sampleRate: 24000 });
+  const analyser = ctx.createAnalyser(); analyser.fftSize = 512; analyser.connect(ctx.destination);
+  return { ctx, analyser, head: 0, sources: new Set() };
+}
+function play(base64) {
+  const bin = atob(base64), bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const pcm = new Int16Array(bytes.buffer), buf = out.ctx.createBuffer(1, pcm.length, 24000), ch = buf.getChannelData(0);
+  for (let i = 0; i < pcm.length; i++) ch[i] = pcm[i] / 0x8000;
+  const src = out.ctx.createBufferSource(); src.buffer = buf; src.connect(out.analyser);
+  out.head = Math.max(out.head, out.ctx.currentTime + 0.05);
+  src.start(out.head); out.head += buf.duration;
+  out.sources.add(src); src.onended = () => out && out.sources.delete(src);
+}
+function stopPlayback() { if (!out) return; for (const s of out.sources) try { s.stop(); } catch {} out.sources.clear(); out.head = 0; }
+function agentTalking() { return out && out.head > out.ctx.currentTime; }
+function meter() {
+  if (!out) return;
+  if (agentTalking()) {
+    const d = new Uint8Array(out.analyser.fftSize); out.analyser.getByteTimeDomainData(d);
+    let sum = 0; for (const x of d) sum += ((x - 128) / 128) ** 2;
+    levels(Math.min(1, Math.sqrt(sum / d.length) * 5), "agent");
+  }
+  requestAnimationFrame(meter);
+}
+
+// ---------------------------------------------------------------- tools
+async function runTool(fc) {
+  $("req").textContent = `${fc.name}(${JSON.stringify(fc.args || {}, null, 2)})`; flash("c-req");
+  caption("Tool: " + fc.name);
+  if (fc.name === "end_call") { hangUpAfterSpeech(); return { result: "Call ending." }; }
+  try {
+    const r = await fetch("/gemini/tool", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: fc.name, args: fc.args || {} }) });
+    const data = await r.json();
+    $("res").textContent = data.result; flash("c-res");
+    const calls = (data.debug && data.debug.woo_calls) || [];
+    $("calls").innerHTML = calls.length ? calls.map(c => `<div>${String(c).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace("->", "→")}</div>`).join("") : "<div style='color:var(--muted)'>no store call needed</div>";
+    flash("c-woo");
+    return { result: data.result };
+  } catch (e) {
+    return { result: "Sorry, the store system isn't responding right now." };
+  }
+}
+
+// ---------------------------------------------------------------- call
+async function startCall() {
+  $("call").disabled = true; caption("Connecting…"); hangingUp = false; ready = false;
+  try {
+    const r = await fetch("/gemini/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    const s = await r.json();
+    if (!r.ok) throw new Error(s.error || "session failed");
+    out = startSpeaker(); meter();
+    if (!NO_MIC) mic = await startMic();
+    ws = new WebSocket(`${WS}?access_token=${encodeURIComponent(s.token)}`);
+    ws.onopen = () => ws.send(JSON.stringify({ setup: s.setup }));
+    ws.onmessage = async e => onMessage(JSON.parse(typeof e.data === "string" ? e.data : await e.data.text()));
+    ws.onclose = e => { if (!hangingUp) caption(`Call dropped (${e.code}${e.reason ? ": " + e.reason : ""})`, true); cleanup(); };
+    ws.onerror = () => caption("Connection error", true);
+  } catch (e) {
+    caption(e.message, true); cleanup();
+  }
+}
+
+async function onMessage(m) {
+  if (m.setupComplete) {
+    ready = true; started = Date.now();
+    timer = setInterval(() => { const s = Math.floor((Date.now() - started) / 1000); $("timer").textContent = `${String(s / 60 | 0).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`; }, 500);
+    $("ring").classList.add("live"); $("call").disabled = false; $("call").textContent = "End call"; $("call").classList.add("end");
+    caption(NO_MIC ? "Live (no mic)" : "Live · speak now");
+    ws.send(JSON.stringify({ clientContent: { turns: [{ role: "user", parts: [{ text: "(The caller just connected. Greet them now.)" }] }], turnComplete: true } }));
+  }
+  const sc = m.serverContent;
+  if (sc) {
+    if (sc.interrupted) stopPlayback();
+    if (sc.inputTranscription && sc.inputTranscription.text) say("caller", sc.inputTranscription.text);
+    if (sc.outputTranscription && sc.outputTranscription.text) say("agent", sc.outputTranscription.text);
+    for (const p of (sc.modelTurn && sc.modelTurn.parts) || []) if (p.inlineData && p.inlineData.data) play(p.inlineData.data);
+    if (sc.turnComplete) { bubble = { who: null, el: null }; if (!hangingUp) caption("Live · speak now"); }
+  }
+  if (m.toolCall) {
+    const responses = [];
+    for (const fc of m.toolCall.functionCalls || []) responses.push({ id: fc.id, name: fc.name, response: await runTool(fc) });
+    if (ws && ws.readyState === 1) ws.send(JSON.stringify({ toolResponse: { functionResponses: responses } }));
+  }
+  if (m.goAway) caption("Session ending soon");
+}
+
+function hangUpAfterSpeech() {
+  hangingUp = true; caption("Ending call…");
+  const wait = () => agentTalking() ? setTimeout(wait, 300) : setTimeout(hangUp, 600);
+  setTimeout(wait, 1500);  // let the goodbye arrive and play
+}
+function hangUp() { hangingUp = true; if (ws) ws.close(); cleanup(); caption("Call ended"); }
+function cleanup() {
+  ready = false; clearInterval(timer); $("ring").classList.remove("live"); levels(0); $("speaker").textContent = "";
+  $("call").disabled = false; $("call").textContent = "Start call"; $("call").classList.remove("end");
+  if (mic) { mic.stream.getTracks().forEach(t => t.stop()); mic.ctx.close(); mic = null; }
+  if (out) { const o = out; out = null; setTimeout(() => o.ctx.close(), 200); }
+  ws = null;
+}
+
+$("call").onclick = () => (ws ? hangUp() : startCall());
+// For testing without a microphone: demoSay("Where is my order 27?")
+window.demoSay = text => ws && ready && ws.send(JSON.stringify({ clientContent: { turns: [{ role: "user", parts: [{ text }] }], turnComplete: true } }));
+</script>
+</body></html>

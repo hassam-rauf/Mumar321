@@ -46,7 +46,9 @@ def build_payload():
 
 def call(method, path, payload):
     req = urllib.request.Request(API + path, json.dumps(payload).encode(), method=method, headers={
-        "Authorization": f"Bearer {os.environ['VAPI_API_KEY']}", "Content-Type": "application/json"})
+        "Authorization": f"Bearer {os.environ['VAPI_API_KEY']}", "Content-Type": "application/json",
+        # Vapi's Cloudflare blocks urllib's default User-Agent with "error code: 1010".
+        "User-Agent": "woo-support-agent/1.0"})
     try:
         with urllib.request.urlopen(req, timeout=30) as r:
             return json.loads(r.read())
