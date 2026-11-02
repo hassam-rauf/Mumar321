@@ -1,7 +1,8 @@
-# WooCommerce AI Support Agent — Voiceflow + Make
+# WooCommerce AI Support Agent — Voiceflow + Make + Vapi
 
-A voice/chat support agent for a WooCommerce store. Voiceflow runs the conversation, one Make
-scenario does the backend work against the WooCommerce REST API.
+A voice/chat support agent for a WooCommerce store. Voiceflow runs the chat conversation, one Make
+scenario does the backend work against the WooCommerce REST API, and a **Vapi phone agent** answers
+calls using the same backend ([setup](docs/vapi-setup.md)).
 
 **What it does**
 
@@ -60,6 +61,11 @@ make/blueprint.json       importable Make scenario (needs manual review — see 
 docs/make-scenario.md     step-by-step Make build guide
 docs/voiceflow-setup.md   intents, slots, API step, call-forward branch
 docs/demo-script.md       2–3 min Loom script
+vapi/assistant.json       Vapi phone agent: prompt, function tools, transcriber
+scripts/vapi_adapter.py   /vapi endpoint: Vapi tool calls -> webhook contract
+scripts/vapi_setup.py     creates/updates the Vapi assistant via the Vapi API
+scripts/test_vapi.py      simulated Vapi tool calls against /vapi
+docs/vapi-setup.md        Vapi setup, test calls and demo recording
 ```
 
 Python scripts use only the standard library (Python 3.9+).

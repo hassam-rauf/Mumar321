@@ -15,6 +15,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import woo as woo_mod
+from vapi_adapter import handle_vapi
 from woo import Woo, WooError, load_env
 
 load_env()
@@ -255,6 +256,11 @@ class Handler(BaseHTTPRequestHandler):
                 if body.get(k):
                     os.environ[k] = str(body[k])
             return self._send(hours_state())
+        if self.path.rstrip("/") == "/vapi":  # Vapi voice agent (see docs/vapi-setup.md)
+            secret = os.environ.get("VAPI_SECRET", "")
+            if secret and self.headers.get("x-vapi-secret") != secret:
+                return self._send({"error": "unauthorized"}, 401)
+            return self._send(handle_vapi(body, handle))
         woo_mod.TRACE.calls = []
         result = handle(body)
         if DEMO:  # not part of the contract: shows which Woo API calls were made
